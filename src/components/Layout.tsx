@@ -1,18 +1,17 @@
+import React from 'react'
 import { motion } from 'framer-motion'
 import { SunIcon, MoonIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 import { cn } from '@/utils'
 
 interface LayoutProps {
   children: React.ReactNode
-  currentStep: number
   darkMode: boolean
   onToggleDarkMode: () => void
   onReset: () => void
 }
 
 export default function Layout({ 
-  children, 
-  currentStep, 
+  children,
   darkMode, 
   onToggleDarkMode,
   onReset 

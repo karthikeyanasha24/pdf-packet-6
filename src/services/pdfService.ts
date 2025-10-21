@@ -29,7 +29,7 @@ export class PDFService {
     const titleFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
     const bodyFont = await pdfDoc.embedFont(StandardFonts.Helvetica)
     
-    const { width, height } = page.getSize()
+    const { height } = page.getSize()
     
     // Title
     page.drawText('MAXTERRA® Documentation Packet', {
@@ -344,7 +344,10 @@ export class PDFService {
    * Download PDF file
    */
   downloadPDF(pdfBytes: Uint8Array, filename: string): void {
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+    const arrayBuffer = new ArrayBuffer(pdfBytes.length)
+    const view = new Uint8Array(arrayBuffer)
+    view.set(pdfBytes)
+    const blob = new Blob([arrayBuffer], { type: 'application/pdf' })
     const url = URL.createObjectURL(blob)
     
     const link = document.createElement('a')
@@ -362,7 +365,10 @@ export class PDFService {
    * Preview PDF in new tab
    */
   previewPDF(pdfBytes: Uint8Array): void {
-    const blob = new Blob([pdfBytes], { type: 'application/pdf' })
+    const arrayBuffer = new ArrayBuffer(pdfBytes.length)
+    const view = new Uint8Array(arrayBuffer)
+    view.set(pdfBytes)
+    const blob = new Blob([arrayBuffer], { type: 'application/pdf' })
     const url = URL.createObjectURL(blob)
     window.open(url, '_blank')
   }

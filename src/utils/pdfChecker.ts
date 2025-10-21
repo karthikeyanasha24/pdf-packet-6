@@ -39,7 +39,8 @@ export class PDFChecker {
         return result
       } catch (encryptionError) {
         // Check if it's an encryption error
-        if (encryptionError instanceof Error && encryptionError.message.includes('encrypted')) {
+        const error = encryptionError as Error
+        if (error && error.message && error.message.includes('encrypted')) {
           result.isEncrypted = true
           
           // Try with ignoreEncryption to see if we can still read it
@@ -52,7 +53,7 @@ export class PDFChecker {
             result.error = 'PDF is encrypted and cannot be processed'
           }
         } else {
-          result.error = encryptionError.message
+          result.error = error.message || 'Unknown PDF error'
         }
       }
     } catch (error) {

@@ -119,7 +119,6 @@ function App() {
             path="/"
             element={
               <Layout
-                currentStep={appState.currentStep}
                 darkMode={appState.darkMode}
                 onToggleDarkMode={toggleDarkMode}
                 onReset={resetApp}
