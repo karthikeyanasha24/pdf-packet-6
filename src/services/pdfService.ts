@@ -279,13 +279,23 @@ export class PDFService {
             if (pdf && !loadError) {
               // Successfully loaded PDF
               try {
-                const pages = await finalPdf.copyPages(pdf, pdf.getPageIndices())
-                pages.forEach((page) => {
-                  finalPdf.addPage(page)
-                  currentPageNumber++
-                })
+                const pageIndices = pdf.getPageIndices()
+                console.log(`Processing ${pageIndices.length} pages from ${selectedDoc.document.name}`)
+                
+                // Try to copy pages one by one to identify problematic pages
+                for (let i = 0; i < pageIndices.length; i++) {
+                  try {
+                    const [copiedPage] = await finalPdf.copyPages(pdf, [pageIndices[i]])
+                    finalPdf.addPage(copiedPage)
+                    currentPageNumber++
+                  } catch (pageError) {
+                    console.warn(`Failed to copy page ${i + 1} from ${selectedDoc.document.name}:`, pageError)
+                    // Skip this page and continue with others
+                  }
+                }
               } catch (copyError) {
-                throw new Error(`Failed to copy pages: ${copyError instanceof Error ? copyError.message : 'Unknown error'}`)
+                console.error(`Failed to process pages from ${selectedDoc.document.name}:`, copyError)
+                throw new Error(`Document structure is corrupted: ${copyError instanceof Error ? copyError.message : 'Unknown error'}`)
               }
             } else {
               // All loading strategies failed

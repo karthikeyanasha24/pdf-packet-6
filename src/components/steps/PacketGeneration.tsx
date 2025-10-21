@@ -12,6 +12,7 @@ import {
 import { cn, formatFileSize } from '@/utils'
 import { documentTypeConfig } from '@/data/documents'
 import { pdfService } from '@/services/pdfService'
+import PacketStats, { DocumentBreakdown } from '@/components/PacketStats'
 import type { SelectedDocument, ProjectFormData } from '@/types'
 import toast from 'react-hot-toast'
 
@@ -196,20 +197,34 @@ export default function PacketGeneration({
           >
             <CloudArrowDownIcon className="w-8 h-8 text-white" />
           </motion.div>
-          <h2 className="text-3xl font-bold font-display text-gray-900 dark:text-white mb-3">
-            Generate PDF Packet
-          </h2>
-          <p className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            Review your selections and generate a professional PDF packet with cover page, 
-            section dividers, and page numbering.
-          </p>
         </div>
 
-        {/* Packet Summary */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
+        <div className="space-y-8">
+          {/* Header */}
+          <div className="text-center">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
+              Generate PDF Packet
+            </h2>
+            <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
+              Review your selections and generate a professional PDF packet with cover page, 
+              section dividers, and all selected documents.
+            </p>
+          </div>
+
+          {/* Dynamic Statistics */}
+          <PacketStats 
+            selectedDocuments={selectedDocuments}
+            formData={formData}
+            isGenerating={isGenerating}
+            generatedSize={generatedPacket?.size}
+          />
+
+          {/* Document Breakdown */}
+          <DocumentBreakdown selectedDocuments={selectedDocuments} />
+
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
           className="mb-8 p-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700"
         >
           <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Packet Summary</h3>
@@ -259,7 +274,7 @@ export default function PacketGeneration({
           </div>
         </motion.div>
 
-        {/* Generation Steps */}
+          {/* Generation Steps */}
         {(isGenerating || generationSteps.some(step => step.status !== 'pending')) && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
@@ -420,6 +435,7 @@ export default function PacketGeneration({
           </div>
         </div>
       </div>
+    </div>
     </motion.div>
   )
 }

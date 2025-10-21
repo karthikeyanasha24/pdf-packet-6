@@ -12,6 +12,7 @@ import {
 } from '@heroicons/react/24/outline'
 import { cn, formatFileSize, generateId } from '@/utils'
 import { availableDocuments, documentTypeConfig } from '@/data/documents'
+import PacketStats from '@/components/PacketStats'
 import type { SelectedDocument, DocumentType } from '@/types'
 
 interface DocumentSelectionProps {
@@ -143,6 +144,12 @@ export default function DocumentSelection({
             </select>
           </div>
         </div>
+
+        {/* Dynamic Statistics */}
+        <PacketStats 
+          selectedDocuments={selectedDocuments}
+          formData={{}}
+        />
 
         {/* Selected Count */}
         <motion.div

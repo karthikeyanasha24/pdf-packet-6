@@ -341,6 +341,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 **Built with ❤️ for MAXTERRA® by Karthik Raja**
 
-For support, please contact: [karthik.raja@maxterra.com]#   p d f - p a c k e t - 2  
- #   p d f - p a c k e t - 2  
+For support, please contact: [karthik.raja@maxterra.com]#   p d f - p a c k e t - 3  
  
