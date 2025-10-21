@@ -21,7 +21,9 @@ import {
   ArrowLeftIcon,
   Bars3Icon,
   TrashIcon,
-  EyeIcon
+  EyeIcon,
+  ChevronUpIcon,
+  ChevronDownIcon
 } from '@heroicons/react/24/outline'
 import { cn, formatFileSize } from '@/utils'
 import { documentTypeConfig } from '@/data/documents'
@@ -37,10 +39,14 @@ interface DocumentOrderingProps {
 interface SortableItemProps {
   document: SelectedDocument
   index: number
+  totalCount: number
   onRemove: (id: string) => void
+  onMoveUp: (id: string) => void
+  onMoveDown: (id: string) => void
+  onPreview: (url: string) => void
 }
 
-function SortableItem({ document, index, onRemove }: SortableItemProps) {
+function SortableItem({ document, index, totalCount, onRemove, onMoveUp, onMoveDown, onPreview }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -112,13 +118,47 @@ function SortableItem({ document, index, onRemove }: SortableItemProps) {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
+          {/* Move Up Button */}
           <button
-            className="btn btn-ghost btn-sm p-2"
-            title="Preview document"
+            onClick={() => onMoveUp(document.id)}
+            disabled={index === 0}
+            className={cn(
+              "btn btn-ghost btn-sm p-2 transition-colors",
+              index === 0 
+                ? "opacity-30 cursor-not-allowed" 
+                : "hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+            )}
+            title="Move up"
+          >
+            <ChevronUpIcon className="w-4 h-4" />
+          </button>
+
+          {/* Move Down Button */}
+          <button
+            onClick={() => onMoveDown(document.id)}
+            disabled={index === totalCount - 1}
+            className={cn(
+              "btn btn-ghost btn-sm p-2 transition-colors",
+              index === totalCount - 1 
+                ? "opacity-30 cursor-not-allowed" 
+                : "hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400"
+            )}
+            title="Move down"
+          >
+            <ChevronDownIcon className="w-4 h-4" />
+          </button>
+
+          {/* Preview Button */}
+          <button
+            onClick={() => onPreview(document.document.url)}
+            className="btn btn-ghost btn-sm p-2 hover:bg-green-50 dark:hover:bg-green-900/20 text-green-600 dark:text-green-400"
+            title="Preview document (opens in new tab)"
           >
             <EyeIcon className="w-4 h-4" />
           </button>
+
+          {/* Remove Button */}
           <button
             onClick={() => onRemove(document.id)}
             className="btn btn-ghost btn-sm p-2 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
@@ -139,7 +179,11 @@ export default function DocumentOrdering({
   onPrevious,
 }: DocumentOrderingProps) {
   const sensors = useSensors(
-    useSensor(PointerSensor),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // Require 8px of movement before dragging starts
+      },
+    }),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
     })
@@ -150,7 +194,7 @@ export default function DocumentOrdering({
     .filter(doc => doc.selected)
     .sort((a, b) => a.order - b.order)
 
-  const handleDragEnd = (event: any) => {
+  function handleDragEnd(event: any) {
     const { active, over } = event
 
     if (active.id !== over?.id) {
@@ -165,15 +209,61 @@ export default function DocumentOrdering({
         order: index
       }))
 
-      // Merge with unselected documents
       const unselectedDocs = selectedDocuments.filter(doc => !doc.selected)
       onUpdateSelectedDocuments([...updatedDocs, ...unselectedDocs])
     }
   }
 
-  const handleRemoveDocument = (documentId: string) => {
-    const updatedDocs = selectedDocuments.filter(doc => doc.id !== documentId)
-    onUpdateSelectedDocuments(updatedDocs)
+  const removeDocument = (documentId: string) => {
+    const updatedDocuments = selectedDocuments.map(doc =>
+      doc.id === documentId ? { ...doc, selected: false } : doc
+    )
+    onUpdateSelectedDocuments(updatedDocuments)
+  }
+
+  // Move document up in order
+  const moveDocumentUp = (documentId: string) => {
+    const currentIndex = sortedDocuments.findIndex(doc => doc.id === documentId)
+    if (currentIndex > 0) {
+      const newDocuments = [...sortedDocuments]
+      const [movedDoc] = newDocuments.splice(currentIndex, 1)
+      newDocuments.splice(currentIndex - 1, 0, movedDoc)
+      
+      // Update orders
+      const updatedDocuments = selectedDocuments.map(doc => {
+        const newIndex = newDocuments.findIndex(newDoc => newDoc.id === doc.id)
+        if (newIndex !== -1) {
+          return { ...doc, order: newIndex + 1 }
+        }
+        return doc
+      })
+      onUpdateSelectedDocuments(updatedDocuments)
+    }
+  }
+
+  // Move document down in order
+  const moveDocumentDown = (documentId: string) => {
+    const currentIndex = sortedDocuments.findIndex(doc => doc.id === documentId)
+    if (currentIndex < sortedDocuments.length - 1) {
+      const newDocuments = [...sortedDocuments]
+      const [movedDoc] = newDocuments.splice(currentIndex, 1)
+      newDocuments.splice(currentIndex + 1, 0, movedDoc)
+      
+      // Update orders
+      const updatedDocuments = selectedDocuments.map(doc => {
+        const newIndex = newDocuments.findIndex(newDoc => newDoc.id === doc.id)
+        if (newIndex !== -1) {
+          return { ...doc, order: newIndex + 1 }
+        }
+        return doc
+      })
+      onUpdateSelectedDocuments(updatedDocuments)
+    }
+  }
+
+  // Preview document
+  const previewDocument = (documentUrl: string) => {
+    window.open(documentUrl, '_blank')
   }
 
   const canProceed = sortedDocuments.length > 0
@@ -196,55 +286,55 @@ export default function DocumentOrdering({
           >
             <Bars3BottomLeftIcon className="w-8 h-8 text-white" />
           </motion.div>
-          <h2 className="text-3xl font-bold font-display text-gray-900 dark:text-white mb-3">
+          
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-4">
             Arrange Documents
           </h2>
-          <p className="text-gray-600 dark:text-gray-300 max-w-2xl mx-auto">
-            Drag and drop to reorder your selected documents. The order here will determine 
-            how they appear in your final PDF packet.
+          <p className="text-lg text-gray-600 dark:text-gray-300 max-w-2xl mx-auto mb-6">
+            Drag and drop to reorder your selected documents. The order here will determine how they appear in your final PDF packet.
           </p>
-        </div>
-
-        {/* Instructions */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="mb-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800"
-        >
-          <div className="flex items-start gap-3">
-            <Bars3Icon className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
-            <div>
-              <h3 className="font-medium text-blue-900 dark:text-blue-100 mb-1">
-                How to reorder documents:
-              </h3>
-              <ul className="text-sm text-blue-700 dark:text-blue-300 space-y-1">
-                <li>• Use the drag handle (⋮⋮⋮) to drag documents up or down</li>
-                <li>• The numbers show the current order in your packet</li>
-                <li>• Click the trash icon to remove a document</li>
-                <li>• Your cover page will always appear first</li>
-              </ul>
+          
+          {/* Instructions */}
+          <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 max-w-3xl mx-auto">
+            <h3 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">How to reorder documents:</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm text-blue-800 dark:text-blue-200">
+              <div className="flex items-center gap-2">
+                <Bars3Icon className="w-4 h-4" />
+                <span>Use the drag handle (⋮⋮⋮) to drag documents up or down</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <ChevronUpIcon className="w-4 h-4" />
+                <ChevronDownIcon className="w-4 h-4" />
+                <span>Click arrow buttons to move documents one position</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <EyeIcon className="w-4 h-4" />
+                <span>Click the eye icon to preview documents in a new tab</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <TrashIcon className="w-4 h-4" />
+                <span>Click the trash icon to remove a document</span>
+              </div>
             </div>
+            <p className="text-xs text-blue-700 dark:text-blue-300 mt-2 italic">
+              Your cover page will always appear first, regardless of the order here.
+            </p>
           </div>
-        </motion.div>
+        </div>
 
         {/* Document Count */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          className="mb-6 p-4 bg-primary-50 dark:bg-primary-900/20 rounded-lg border border-primary-200 dark:border-primary-800"
+          transition={{ delay: 0.4 }}
+          className="mb-8 p-4 bg-primary-50 dark:bg-primary-900/20 rounded-lg border border-primary-200 dark:border-primary-800"
         >
-          <p className="text-primary-700 dark:text-primary-300 font-medium">
-            {sortedDocuments.length} document{sortedDocuments.length !== 1 ? 's' : ''} in your packet
-            {sortedDocuments.length > 0 && (
-              <span className="ml-2 text-sm text-primary-600 dark:text-primary-400">
-                • Ready to generate PDF
-              </span>
-            )}
+          <p className="text-primary-700 dark:text-primary-300 font-medium text-center">
+            {sortedDocuments.length} document{sortedDocuments.length !== 1 ? 's' : ''} selected for your packet
           </p>
         </motion.div>
 
-        {/* Documents List */}
+        {/* Document List */}
         {sortedDocuments.length > 0 ? (
           <DndContext
             sensors={sensors}
@@ -262,7 +352,11 @@ export default function DocumentOrdering({
                       key={document.id}
                       document={document}
                       index={index}
-                      onRemove={handleRemoveDocument}
+                      totalCount={sortedDocuments.length}
+                      onRemove={removeDocument}
+                      onMoveUp={moveDocumentUp}
+                      onMoveDown={moveDocumentDown}
+                      onPreview={previewDocument}
                     />
                   ))}
                 </AnimatePresence>
@@ -275,7 +369,9 @@ export default function DocumentOrdering({
             animate={{ opacity: 1 }}
             className="text-center py-12"
           >
-            <Bars3BottomLeftIcon className="w-16 h-16 text-gray-300 dark:text-gray-600 mx-auto mb-4" />
+            <div className="w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Bars3BottomLeftIcon className="w-8 h-8 text-gray-400" />
+            </div>
             <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
               No documents selected
             </h3>
@@ -284,41 +380,40 @@ export default function DocumentOrdering({
             </p>
             <button
               onClick={onPrevious}
-              className="btn btn-primary btn-md"
+              className="btn btn-secondary"
             >
-              Select Documents
+              <ArrowLeftIcon className="w-4 h-4 mr-2" />
+              Back to Selection
             </button>
           </motion.div>
         )}
 
         {/* Navigation */}
-        {sortedDocuments.length > 0 && (
-          <div className="flex justify-between pt-8 border-t border-gray-200 dark:border-gray-700">
-            <motion.button
-              onClick={onPrevious}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="btn btn-outline btn-lg"
-            >
-              <ArrowLeftIcon className="w-5 h-5 mr-2" />
-              Back to Selection
-            </motion.button>
+        <div className="flex justify-between items-center pt-8 border-t border-gray-200 dark:border-gray-700">
+          <motion.button
+            onClick={onPrevious}
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.98 }}
+            className="btn btn-secondary btn-lg"
+          >
+            <ArrowLeftIcon className="w-5 h-5 mr-2" />
+            Previous
+          </motion.button>
 
-            <motion.button
-              onClick={onNext}
-              disabled={!canProceed}
-              whileHover={canProceed ? { scale: 1.02 } : {}}
-              whileTap={canProceed ? { scale: 0.98 } : {}}
-              className={cn(
-                "btn btn-primary btn-lg min-w-48",
-                !canProceed && "opacity-50 cursor-not-allowed"
-              )}
-            >
-              Generate Packet
-              <ArrowRightIcon className="w-5 h-5 ml-2" />
-            </motion.button>
-          </div>
-        )}
+          <motion.button
+            onClick={onNext}
+            disabled={!canProceed}
+            whileHover={canProceed ? { scale: 1.02 } : {}}
+            whileTap={canProceed ? { scale: 0.98 } : {}}
+            className={cn(
+              "btn btn-primary btn-lg",
+              !canProceed && "opacity-50 cursor-not-allowed"
+            )}
+          >
+            Generate Packet
+            <ArrowRightIcon className="w-5 h-5 ml-2" />
+          </motion.button>
+        </div>
       </div>
     </motion.div>
   )
