@@ -58,7 +58,6 @@ A modern, responsive web application for creating professional PDF documentation
 ### **Prerequisites**
 - Node.js 18+ 
 - npm or yarn
-- Git
 
 ### **Installation**
 
@@ -67,25 +66,20 @@ A modern, responsive web application for creating professional PDF documentation
 git clone <repository-url>
 cd PDF-PACKET
 ```
+2. **Install dependencies**: `npm install`
+3. **Copy environment**: `copy .env.example .env`
+4. **Start development server**: `npm run dev`
+5. **Open your browser**: Navigate to `http://localhost:3000`
 
-2. **Install dependencies**
-```bash
-npm install
-```
-
-3. **Start development server**
-```bash
-npm run dev
-```
-
-4. **Open in browser**
-```
-http://localhost:3000
-```
+### **Production Deployment**
+- **Frontend**: Deployed on Netlify
+- **Backend**: Cloudflare Workers for PDF processing
+- **Storage**: Public PDF files served via CDN
 
 ### **Available Scripts**
 
 ```bash
+{{ ... }}
 # Development
 npm run dev          # Start dev server with hot reload
 npm run build        # Build for production
@@ -342,4 +336,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 **Built with ❤️ for MAXTERRA® by Karthik Raja**
 
 For support, please contact: [karthik.raja@maxterra.com](mailto:karthik.raja@maxterra.com)#   p d f - p a c k e t - 4  
+ #   p d f - p a c k e t - 5  
  

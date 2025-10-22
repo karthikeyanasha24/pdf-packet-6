@@ -1,0 +1,12 @@
+name = "maxterra-pdf-worker"
+main = "src/index.ts"
+compatibility_date = "2024-01-15"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+CORS_ORIGIN = "*"
+
+[env.production]
+name = "maxterra-pdf-worker"
+[env.production.vars]
+CORS_ORIGIN = "https://your-netlify-site.netlify.app"
