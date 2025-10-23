@@ -1,8 +1,7 @@
-import { PDFDocument, rgb, StandardFonts } from 'pdf-lib'
+import { PDFDocument, rgb, StandardFonts, PageSizes } from 'pdf-lib'
 
 export interface Env {
   // Define your environment variables here
-  CORS_ORIGIN?: string
 }
 
 interface ProjectData {
@@ -18,7 +17,6 @@ interface DocumentRequest {
   name: string
   url: string
   type: string
-  order: number
 }
 
 interface GeneratePacketRequest {
@@ -30,7 +28,7 @@ export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     // Handle CORS
     const corsHeaders = {
-      'Access-Control-Allow-Origin': env.CORS_ORIGIN || '*',
+      'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       'Access-Control-Allow-Headers': 'Content-Type',
     }
@@ -39,142 +37,186 @@ export default {
       return new Response(null, { headers: corsHeaders })
     }
 
-    try {
-      const url = new URL(request.url)
-      
-      if (url.pathname === '/generate-packet' && request.method === 'POST') {
+    if (request.method === 'POST' && new URL(request.url).pathname === '/generate-packet') {
+      try {
         const { projectData, documents }: GeneratePacketRequest = await request.json()
         
-        const pdfBytes = await generatePDFPacket(projectData, documents)
+        console.log(`Generating packet for: ${projectData.projectName}`)
+        console.log(`Processing ${documents.length} documents`)
+
+        // Create new PDF document
+        const finalPdf = await PDFDocument.create()
+        
+        // Add cover page
+        await addCoverPage(finalPdf, projectData)
+        
+        let currentPageNumber = 2 // Start after cover page
+        
+        // Process each document
+        for (const doc of documents) {
+          try {
+            console.log(`Processing: ${doc.name}`)
+            
+            // Add divider page
+            await addDividerPage(finalPdf, doc.name, doc.type, currentPageNumber)
+            currentPageNumber++
+            
+            // Fetch and merge PDF
+            const pdfBytes = await fetchPDF(doc.url)
+            if (pdfBytes) {
+              const sourcePdf = await PDFDocument.load(pdfBytes)
+              const pageIndices = sourcePdf.getPageIndices()
+              
+              // Copy pages one by one for better error handling
+              for (let i = 0; i < pageIndices.length; i++) {
+                try {
+                  const [copiedPage] = await finalPdf.copyPages(sourcePdf, [pageIndices[i]])
+                  finalPdf.addPage(copiedPage)
+                  currentPageNumber++
+                } catch (pageError) {
+                  console.warn(`Failed to copy page ${i + 1} from ${doc.name}:`, pageError)
+                  // Add error page instead
+                  await addErrorPage(finalPdf, doc.name, `Page ${i + 1} could not be processed`)
+                  currentPageNumber++
+                }
+              }
+              
+              console.log(`Successfully processed ${pageIndices.length} pages from ${doc.name}`)
+            } else {
+              // Add error page if PDF couldn't be loaded
+              await addErrorPage(finalPdf, doc.name, 'Document could not be loaded')
+              currentPageNumber++
+            }
+          } catch (docError) {
+            console.error(`Error processing ${doc.name}:`, docError)
+            await addErrorPage(finalPdf, doc.name, 'Document processing failed')
+            currentPageNumber++
+          }
+        }
+        
+        // Add page numbers to all pages
+        await addPageNumbers(finalPdf)
+        
+        // Generate final PDF
+        const pdfBytes = await finalPdf.save()
+        
+        console.log(`Packet generated successfully: ${pdfBytes.length} bytes`)
         
         return new Response(pdfBytes, {
           headers: {
             ...corsHeaders,
             'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="${projectData.projectName || 'packet'}.pdf"`,
+            'Content-Disposition': `attachment; filename="${projectData.projectName.replace(/[^a-zA-Z0-9]/g, '_')}_Packet.pdf"`,
+            'Content-Length': pdfBytes.length.toString(),
           },
         })
-      }
-
-      if (url.pathname === '/health') {
-        return new Response(JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() }), {
+        
+      } catch (error) {
+        console.error('Error generating packet:', error)
+        return new Response(JSON.stringify({ 
+          error: 'Failed to generate packet',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        }), {
+          status: 500,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         })
       }
-
-      return new Response('Not Found', { status: 404, headers: corsHeaders })
-    } catch (error) {
-      console.error('Worker error:', error)
-      return new Response(JSON.stringify({ 
-        error: 'Internal server error', 
-        message: error instanceof Error ? error.message : 'Unknown error' 
-      }), {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      })
     }
+
+    return new Response('PDF Packet Generator Worker', {
+      headers: corsHeaders,
+    })
   },
 }
 
-async function generatePDFPacket(projectData: ProjectData, documents: DocumentRequest[]): Promise<Uint8Array> {
-  const finalPdf = await PDFDocument.create()
-  
-  // Add cover page
-  await addCoverPage(finalPdf, projectData)
-  
-  let currentPageNumber = 2 // Start after cover page
-  
-  // Sort documents by order
-  const sortedDocuments = documents.sort((a, b) => a.order - b.order)
-  
-  // Process each document
-  for (const doc of sortedDocuments) {
-    try {
-      // Add divider page
-      await addDividerPage(finalPdf, doc, currentPageNumber)
-      currentPageNumber++
-      
-      // Fetch and merge the PDF
-      const pdfResponse = await fetch(doc.url)
-      if (!pdfResponse.ok) {
-        throw new Error(`Failed to fetch PDF: ${pdfResponse.status}`)
-      }
-      
-      const pdfBytes = await pdfResponse.arrayBuffer()
-      const sourcePdf = await PDFDocument.load(pdfBytes, { ignoreEncryption: true })
-      
-      // Copy pages with error handling
-      const pageIndices = sourcePdf.getPageIndices()
-      for (let i = 0; i < pageIndices.length; i++) {
-        try {
-          const [copiedPage] = await finalPdf.copyPages(sourcePdf, [pageIndices[i]])
-          finalPdf.addPage(copiedPage)
-          currentPageNumber++
-        } catch (pageError) {
-          console.warn(`Failed to copy page ${i + 1} from ${doc.name}:`, pageError)
-          // Add error page instead
-          await addErrorPage(finalPdf, `Page ${i + 1} of ${doc.name}`, pageError instanceof Error ? pageError.message : 'Unknown error')
-          currentPageNumber++
-        }
-      }
-    } catch (docError) {
-      console.error(`Failed to process document ${doc.name}:`, docError)
-      // Add error page for the entire document
-      await addErrorPage(finalPdf, doc.name, docError instanceof Error ? docError.message : 'Failed to load document')
-      currentPageNumber++
+async function fetchPDF(url: string): Promise<ArrayBuffer | null> {
+  try {
+    // Convert relative URL to properly encoded GitHub raw URL
+    let fullUrl = url
+    if (!url.startsWith('http')) {
+      // Remove leading slash if present
+      const cleanPath = url.startsWith('/') ? url.substring(1) : url
+      // Properly encode the URL components
+      const encodedPath = encodeURIComponent(cleanPath).replace(/%2F/g, '/')
+      fullUrl = `https://raw.githubusercontent.com/karthikeyanasha24/pdf-packet-4/main/public/${encodedPath}`
     }
+    
+    console.log(`Fetching PDF from: ${fullUrl}`)
+    
+    const response = await fetch(fullUrl, {
+      headers: {
+        'User-Agent': 'PDF-Packet-Generator/1.0',
+      }
+    })
+    
+    if (!response.ok) {
+      console.error(`Failed to fetch PDF: ${response.status} ${response.statusText}`)
+      console.error(`URL attempted: ${fullUrl}`)
+      return null
+    }
+    
+    const arrayBuffer = await response.arrayBuffer()
+    console.log(`PDF fetched successfully: ${arrayBuffer.byteLength} bytes`)
+    return arrayBuffer
+  } catch (error) {
+    console.error(`Error fetching PDF from ${url}:`, error)
+    return null
   }
-  
-  // Add page numbers to all pages except cover
-  await addPageNumbers(finalPdf)
-  
-  return await finalPdf.save()
 }
 
 async function addCoverPage(pdf: PDFDocument, projectData: ProjectData) {
-  const page = pdf.addPage([612, 792]) // Letter size
+  const page = pdf.addPage(PageSizes.A4)
+  const { width, height } = page.getSize()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
   const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold)
   
-  const { width, height } = page.getSize()
-  
-  // Title
-  page.drawText('MAXTERRA® PDF PACKET', {
+  // MAXTERRA Header
+  page.drawText('MAXTERRA®', {
     x: 50,
     y: height - 100,
-    size: 24,
+    size: 32,
     font: boldFont,
-    color: rgb(0.2, 0.2, 0.2),
+    color: rgb(0.058, 0.647, 0.914), // Primary blue
   })
   
-  // Project details
-  const details = [
-    { label: 'Project Name:', value: projectData.projectName },
-    { label: 'Submitted To:', value: projectData.submittedTo },
-    { label: 'Prepared By:', value: projectData.preparedBy },
-    { label: 'Product:', value: projectData.product },
-    { label: 'Date:', value: projectData.date },
+  page.drawText('PDF PACKET', {
+    x: 50,
+    y: height - 140,
+    size: 24,
+    font: boldFont,
+    color: rgb(0.4, 0.4, 0.4),
+  })
+  
+  // Project Information
+  const startY = height - 220
+  const lineHeight = 30
+  
+  const fields = [
+    ['Project Name:', projectData.projectName],
+    ['Submitted To:', projectData.submittedTo],
+    ['Prepared By:', projectData.preparedBy],
+    ['Product:', projectData.product],
+    ['Date:', projectData.date],
   ]
   
-  let yPosition = height - 200
-  details.forEach(({ label, value }) => {
-    if (value) {
-      page.drawText(label, {
-        x: 50,
-        y: yPosition,
-        size: 12,
-        font: boldFont,
-        color: rgb(0.3, 0.3, 0.3),
-      })
-      page.drawText(value, {
-        x: 150,
-        y: yPosition,
-        size: 12,
-        font: font,
-        color: rgb(0.2, 0.2, 0.2),
-      })
-      yPosition -= 30
-    }
+  fields.forEach(([label, value], index) => {
+    const y = startY - (index * lineHeight)
+    
+    page.drawText(label, {
+      x: 50,
+      y,
+      size: 12,
+      font: boldFont,
+      color: rgb(0.2, 0.2, 0.2),
+    })
+    
+    page.drawText(value || 'N/A', {
+      x: 180,
+      y,
+      size: 12,
+      font: font,
+      color: rgb(0, 0, 0),
+    })
   })
   
   // Footer
@@ -183,107 +225,110 @@ async function addCoverPage(pdf: PDFDocument, projectData: ProjectData) {
     y: 50,
     size: 10,
     font: font,
-    color: rgb(0.5, 0.5, 0.5),
+    color: rgb(0.6, 0.6, 0.6),
   })
 }
 
-async function addDividerPage(pdf: PDFDocument, document: DocumentRequest, pageNumber: number) {
-  const page = pdf.addPage([612, 792])
+async function addDividerPage(pdf: PDFDocument, documentName: string, documentType: string, pageNumber: number) {
+  const page = pdf.addPage(PageSizes.A4)
+  const { width, height } = page.getSize()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
   const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold)
   
-  const { width, height } = page.getSize()
-  
-  // Document type and name
-  page.drawText(document.type.toUpperCase(), {
+  // Section header
+  page.drawText('SECTION DIVIDER', {
     x: 50,
-    y: height - 150,
-    size: 18,
+    y: height - 100,
+    size: 16,
     font: boldFont,
-    color: rgb(0.2, 0.2, 0.2),
+    color: rgb(0.058, 0.647, 0.914),
   })
   
-  page.drawText(document.name, {
+  // Document name
+  page.drawText(documentName, {
     x: 50,
-    y: height - 200,
-    size: 14,
+    y: height - 150,
+    size: 20,
+    font: boldFont,
+    color: rgb(0, 0, 0),
+  })
+  
+  // Document type
+  page.drawText(`Type: ${documentType}`, {
+    x: 50,
+    y: height - 180,
+    size: 12,
     font: font,
-    color: rgb(0.3, 0.3, 0.3),
+    color: rgb(0.4, 0.4, 0.4),
   })
   
   // Page number
   page.drawText(`Page ${pageNumber}`, {
-    x: width - 100,
-    y: 30,
+    x: 50,
+    y: height - 200,
     size: 10,
     font: font,
-    color: rgb(0.5, 0.5, 0.5),
+    color: rgb(0.6, 0.6, 0.6),
   })
 }
 
 async function addErrorPage(pdf: PDFDocument, documentName: string, errorMessage: string) {
-  const page = pdf.addPage([612, 792])
+  const page = pdf.addPage(PageSizes.A4)
+  const { width, height } = page.getSize()
   const font = await pdf.embedFont(StandardFonts.Helvetica)
   const boldFont = await pdf.embedFont(StandardFonts.HelveticaBold)
   
-  const { width, height } = page.getSize()
-  
-  // Error title
+  // Error header
   page.drawText('DOCUMENT ERROR', {
     x: 50,
-    y: height - 150,
-    size: 18,
+    y: height - 100,
+    size: 16,
     font: boldFont,
     color: rgb(0.8, 0.2, 0.2),
   })
   
   // Document name
-  page.drawText(`Document: ${documentName}`, {
+  page.drawText(documentName, {
     x: 50,
-    y: height - 200,
+    y: height - 150,
     size: 14,
-    font: font,
-    color: rgb(0.3, 0.3, 0.3),
+    font: boldFont,
+    color: rgb(0, 0, 0),
   })
   
-  // Error message (truncated to fit)
-  const maxLength = 80
-  const truncatedError = errorMessage.length > maxLength 
-    ? errorMessage.substring(0, maxLength) + '...' 
-    : errorMessage
-  
-  page.drawText(`Error: ${truncatedError}`, {
+  // Error message
+  page.drawText(`Error: ${errorMessage}`, {
     x: 50,
-    y: height - 250,
+    y: height - 180,
     size: 12,
     font: font,
-    color: rgb(0.5, 0.5, 0.5),
+    color: rgb(0.6, 0.2, 0.2),
   })
   
-  page.drawText('This document could not be processed and has been skipped.', {
+  // Instructions
+  page.drawText('Please contact support if this error persists.', {
     x: 50,
-    y: height - 300,
-    size: 12,
+    y: height - 220,
+    size: 10,
     font: font,
-    color: rgb(0.5, 0.5, 0.5),
+    color: rgb(0.4, 0.4, 0.4),
   })
 }
 
 async function addPageNumbers(pdf: PDFDocument) {
-  const font = await pdf.embedFont(StandardFonts.Helvetica)
   const pages = pdf.getPages()
+  const font = await pdf.embedFont(StandardFonts.Helvetica)
   
-  // Skip cover page (index 0)
-  for (let i = 1; i < pages.length; i++) {
-    const page = pages[i]
+  pages.forEach((page, index) => {
     const { width } = page.getSize()
+    const pageNumber = index + 1
     
-    page.drawText(`${i + 1}`, {
+    page.drawText(`${pageNumber}`, {
       x: width - 50,
       y: 30,
       size: 10,
       font: font,
-      color: rgb(0.5, 0.5, 0.5),
+      color: rgb(0.4, 0.4, 0.4),
     })
-  }
+  })
 }

@@ -1,20 +1,19 @@
 {
-  "name": "maxterra-pdf-worker",
+  "name": "pdf-packet-worker",
   "version": "1.0.0",
   "description": "Cloudflare Worker for PDF packet generation",
   "main": "src/index.ts",
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "deploy:staging": "wrangler deploy --env staging",
-    "deploy:production": "wrangler deploy --env production"
+    "tail": "wrangler tail"
   },
   "dependencies": {
     "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20241022.0",
-    "typescript": "^5.6.3",
-    "wrangler": "^4.44.0"
+    "@cloudflare/workers-types": "^4.20241011.0",
+    "wrangler": "^3.78.12",
+    "typescript": "^5.6.3"
   }
 }

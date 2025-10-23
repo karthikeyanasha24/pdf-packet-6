@@ -4,25 +4,11 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  VITE_WORKER_URL = "https://maxterra-pdf-builder.workers.dev"
-  VITE_APP_NAME = "MAXTERRA® PDF Packet Builder"
-  VITE_APP_VERSION = "1.0.0"
-  VITE_CLOUDFLARE_ACCOUNT_ID = "b02a9497ca2457ab0d0fca678fc2a8fe"
-  VITE_DEBUG_MODE = "false"
-  VITE_ENABLE_PREVIEW = "true"
 
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-[[headers]]
-  for = "/*"
-  [headers.values]
-    X-Frame-Options = "DENY"
-    X-XSS-Protection = "1; mode=block"
-    X-Content-Type-Options = "nosniff"
-    Referrer-Policy = "strict-origin-when-cross-origin"
 
 [[headers]]
   for = "/PDFS/*"

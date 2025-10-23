@@ -9,8 +9,10 @@
     "allowJs": true,
     "checkJs": false,
     "strict": true,
+    "noEmit": true,
     "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
     "types": ["@cloudflare/workers-types"]
   },
   "include": ["src/**/*"],
